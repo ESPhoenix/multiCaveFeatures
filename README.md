@@ -12,7 +12,7 @@ The following features are generated for core, exterior and cave regions:
 ## Clone Repository
 
 ```bash
-git clone https://github.com/ESPhoenix/coreFeatures
+git clone https://github.com/ESPhoenix/multiCaveFeatures
 ```
 
 ## Create and Activate Conda Environment

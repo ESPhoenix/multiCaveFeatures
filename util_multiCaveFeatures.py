@@ -173,7 +173,7 @@ def calculate_amino_acid_properties_in_region(aaCountDf, aminoAcidNames, aminoAc
     return propertiesDf
 
 ########################################################################################
-def gen_cave_region(outDir,pdbFile):
+def gen_multi_cave_regions(outDir,pdbFile):
     proteinName = p.splitext(p.basename(pdbFile))[0]
 
     pocketDir = p.join(outDir,proteinName)
@@ -188,13 +188,29 @@ def gen_cave_region(outDir,pdbFile):
     subprocess.call(["fpocket","-f",pocketPdb,"-m",minSphereSize,"-M",maxSphereSize],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     fpocketOutDir = p.join(pocketDir,f"{proteinName}_out","pockets")
-    ## ASSUMPTION == LARGEST POCKET IS OUR BINDING POCKET ## Not really true!
-    largestPocketPdb = p.join(fpocketOutDir,"pocket1_atm.pdb")
-    ## ERROR Handling
-    if not p.isfile(largestPocketPdb):
-        return
-    largestPocketDf = pdb2df(largestPocketPdb)
+    pocketDfs = []
+    pocketTags = []
+    for file in os.listdir(fpocketOutDir):
+        if not p.splitext(file)[1]==".pdb":
+            continue
+        pocketPdb = p.join(fpocketOutDir,file)
+        pocketDf = pdb2df(pocketPdb)
+        pocketDfs.append(pocketDf)
+        pocketTag = gen_pocket_tag(pocketDf)
+        pocketTags.append(pocketTag)
+
     ## CLEAN UP POCKET DIR ##
     rmtree(pocketDir)
 
-    return largestPocketDf
+    return pocketDfs, pocketTags
+
+def gen_pocket_tag(df):
+    pocketCenter = [df["X"].mean(), df["X"].mean(), df["X"].mean()]
+    df.loc[:,"pocketCenter"] = np.linalg.norm(df[["X", "Y", "Z"]].values - np.array(pocketCenter), axis=1)
+    df.sort_values(by="pocketCenter", ascending= False, inplace=True)
+    chain = df.loc[0,"CHAIN_ID"]
+    resName = df.loc[0,"RES_NAME"]
+    resId = str(df.loc[0,"RES_ID"])
+    pocketTag = ":".join([chain,resName,resId])
+    return pocketTag
+
