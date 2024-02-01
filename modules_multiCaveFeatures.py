@@ -5,6 +5,7 @@ import pandas as pd
 import subprocess
 from shutil import copy, rmtree
 from pdbUtils import *
+from scipy.spatial.distance import cdist
 
 ###########################################################################################################
 def calculateEuclideanDistance(row, point):
@@ -196,21 +197,44 @@ def gen_multi_cave_regions(outDir,pdbFile):
         pocketPdb = p.join(fpocketOutDir,file)
         pocketDf = pdb2df(pocketPdb)
         pocketDfs.append(pocketDf)
-        pocketTag = gen_pocket_tag(pocketDf)
+        pocketTag = gen_pocket_tag(pocketDf,pocketTags)
         pocketTags.append(pocketTag)
 
     ## CLEAN UP POCKET DIR ##
     rmtree(pocketDir)
 
     return pocketDfs, pocketTags
-
-def gen_pocket_tag(df):
+########################################################################################
+def gen_pocket_tag(df, pocketTags):
     pocketCenter = [df["X"].mean(), df["X"].mean(), df["X"].mean()]
     df.loc[:,"pocketCenter"] = np.linalg.norm(df[["X", "Y", "Z"]].values - np.array(pocketCenter), axis=1)
     df.sort_values(by="pocketCenter", ascending= False, inplace=True)
-    chain = df.loc[0,"CHAIN_ID"]
-    resName = df.loc[0,"RES_NAME"]
-    resId = str(df.loc[0,"RES_ID"])
-    pocketTag = ":".join([chain,resName,resId])
-    return pocketTag
+    for i in range(0,len(df)):
+        chain = df.loc[i,"CHAIN_ID"]
+        resName = df.loc[i,"RES_NAME"]
+        resId = str(df.loc[i,"RES_ID"])
+        pocketTag = ":".join([chain,resName,resId])
+        if not pocketTag in pocketTags:
+            return pocketTag
+########################################################################################
+def generate_cofactor_labels(caveDfs, pocketTags, cofactorDf, proteinName):
+    indexNames = [f"{proteinName}_{pocketTag}" for pocketTag in pocketTags]
+    labelsDf = pd.DataFrame(index = indexNames, columns = ["Cofactor"]).fillna("Vacant")
+    uniqueCofactorNames = cofactorDf["RES_NAME"].unique()
+    for coName in uniqueCofactorNames:
+        uniqueCoDf = cofactorDf[cofactorDf["RES_NAME"] == coName]
+        minDistances = []
+        for caveDf, tag in zip(caveDfs, indexNames):
+            # find min distance between caveDf and cofactorDf
+            caveCoords = caveDf[["X","Y","Z"]].values
+            coCoords = uniqueCoDf[["X","Y","Z"]].values
+            distances = cdist(caveCoords, coCoords)
+            minDist = distances.min()
+            tmpDf = pd.DataFrame({tag:minDist}, index = [coName])
+            minDistances.append(tmpDf)
+        minDistDf = pd.concat(minDistances, axis=1).T
+        minIndex = minDistDf.idxmin(axis=0).to_list()
+        labelsDf.loc[minIndex,"Cofactor"] = coName
+    return labelsDf      
+
 
