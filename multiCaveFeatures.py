@@ -2,15 +2,13 @@
 ## BASIC LIBRRAIES
 import os
 from os import path as p
-import sys
 import pandas as pd
 import argpass
 import multiprocessing
 import glob
 from tqdm import tqdm
 import yaml
-import dask.dataframe as dd
-from dask.distributed import Client
+
 
 ## SPECIFIC CAVEFEATURES FUNCTIONS ##
 from modules_multiCaveFeatures import *
@@ -19,20 +17,20 @@ from pdbUtils import *
 def main():
     # load user inputs
     inputDir, outDir, msmsDir, aminoAcidTable, genCofactorLabels = read_inputs()
+
     os.makedirs(outDir, exist_ok=True)
     # initialise amino acid data
     aminoAcidNames, aminoAcidProperties = initialiseAminoAcidInformation(aminoAcidTable)
     # get list of pdbFiles in pdbDir
     idList, pdbList = getPdbList(inputDir)
-
-   # process_serial(pdbList=pdbList,
-   #               outDir=outDir, 
-   #               aminoAcidNames=aminoAcidNames,
-   #                 aminoAcidProperties=aminoAcidProperties,
-   #                 msmsDir=msmsDir,
-   #                 pdbDir=inputDir,
-   #                 genCofactorLabels = genCofactorLabels)
-    #   
+#    process_serial(pdbList=pdbList,
+#                 outDir=outDir, 
+#                 aminoAcidNames=aminoAcidNames,
+#                 aminoAcidProperties=aminoAcidProperties,
+#                 msmsDir=msmsDir,
+#                 pdbDir=inputDir,
+#                 genCofactorLabels = genCofactorLabels)
+#    #   
     # Process pdbList using multiprocessing
     process_pdbs(pdbList=pdbList,
                   outDir=outDir, 
@@ -48,7 +46,7 @@ def merge_csv_files(csvFiles, outFile):
     chunk_size = 10  # Adjust this based on available memory
     for i in range(0, len(csvFiles), chunk_size):
         chunkFiles = csvFiles[i:i + chunk_size]
-        dfs = [pd.read_csv(csvFile, index_col=0) for csvFile in chunkFiles]
+        dfs = [pd.read_csv(csvFile, index_col="Unnamed: 0") for csvFile in chunkFiles]
         merged_df = pd.concat(dfs, axis=0)
         merged_df.to_csv(outFile, mode='a', header=not os.path.exists(outFile), index=True)
         for csvFile in chunkFiles:
@@ -183,7 +181,9 @@ def process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, ms
                     extAACountDf,coreAACountDf,caveAACountDf,
                     extPropertiesDf,corePropertiesDf,cavePropertiesDf]
         if genCofactorLabels:
-            dfsToConcat.append(labelsDf.loc[pocketName,:])
+            label = labelsDf.loc[:,pocketName]
+            label.rename("Cofactor",inplace=True)
+            dfsToConcat.append(label)
 
         ## SORT OUT INDEXES
         for df in dfsToConcat:

@@ -235,6 +235,6 @@ def generate_cofactor_labels(caveDfs, pocketTags, cofactorDf, proteinName):
         minDistDf = pd.concat(minDistances, axis=1).T
         minIndex = minDistDf.idxmin(axis=0).to_list()
         labelsDf.loc[minIndex,"Cofactor"] = coName
-    return labelsDf      
+    return labelsDf.T     
 
 
