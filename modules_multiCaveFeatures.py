@@ -6,7 +6,7 @@ import subprocess
 from shutil import copy, rmtree
 from pdbUtils import *
 from scipy.spatial.distance import cdist
-
+import yaml
 ###########################################################################################################
 def calculateEuclideanDistance(row, point):
     xDiff = row['X'] - point[0]
@@ -183,27 +183,56 @@ def gen_multi_cave_regions(outDir,pdbFile):
     copy(pdbFile,pocketPdb)
 
     os.chdir(pocketDir)
-
+    ## Run FPocket
     minSphereSize = "3.0"
     maxSphereSize = "6.0"
     subprocess.call(["fpocket","-f",pocketPdb,"-m",minSphereSize,"-M",maxSphereSize],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    fpocketOutDir = p.join(pocketDir,f"{proteinName}_out","pockets")
+    # Read FPocket results into a dictionary, via  yaml file
+    fpocketOutDir = p.join(pocketDir,f"{proteinName}_out")
+    fpocketPdbDir = p.join(fpocketOutDir, "pockets")
+    fpocketInfo = p.join(fpocketOutDir,f"{proteinName}_info.txt")
+    if not p.isfile(fpocketInfo):
+        print(proteinName)
+        return None, None
+    info = fpocket_info_to_dict(fpocketInfo,fpocketOutDir)
+    # generate unique identifiers for pockets
     pocketDfs = []
     pocketTags = []
-    for file in os.listdir(fpocketOutDir):
-        if not p.splitext(file)[1]==".pdb":
-            continue
-        pocketPdb = p.join(fpocketOutDir,file)
+    for pocketId in info:
+        if info[pocketId]["Score"] < 0.15:
+            break
+        pocketNumber = pocketId.split()[1]
+        pocketPdb = p.join(fpocketPdbDir, f"pocket{pocketNumber}_atm.pdb")
         pocketDf = pdb2df(pocketPdb)
         pocketDfs.append(pocketDf)
         pocketTag = gen_pocket_tag(pocketDf,pocketTags)
         pocketTags.append(pocketTag)
-
+    # use fpocket output as features
+    fpocketFeatures = []
+    for pocketKey in info:
+        fpocketFeatureDict = {}
+        for key in info[pocketKey]:
+            newKey = "cave."+"_".join(key.split())
+            fpocketFeatureDict[newKey] = info[pocketKey][key]
+        tmpDf = pd.DataFrame(fpocketFeatureDict, index=[1])
+        fpocketFeatures.append(tmpDf)
     ## CLEAN UP POCKET DIR ##
     rmtree(pocketDir)
+    return pocketDfs, pocketTags, fpocketFeatures
 
-    return pocketDfs, pocketTags
+########################################################################################
+def fpocket_info_to_dict(infoFile, fpocketOutDir):
+    with open(infoFile,"r") as  txtFile:
+        txt = txtFile.read()
+    yamlData = txt.replace("\t", " "*2)
+    with open(p.join(fpocketOutDir,"info.yaml"),"w") as yamlFile:
+        yamlFile.write(yamlData)
+
+    with open(p.join(fpocketOutDir,"info.yaml"),"r") as yamlFile:
+        info = yaml.safe_load(yamlFile) 
+
+    return info
 ########################################################################################
 def gen_pocket_tag(df, pocketTags):
     pocketCenter = [df["X"].mean(), df["X"].mean(), df["X"].mean()]

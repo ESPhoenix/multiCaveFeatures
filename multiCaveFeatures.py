@@ -23,22 +23,22 @@ def main():
     aminoAcidNames, aminoAcidProperties = initialiseAminoAcidInformation(aminoAcidTable)
     # get list of pdbFiles in pdbDir
     idList, pdbList = getPdbList(inputDir)
-#    process_serial(pdbList=pdbList,
-#                 outDir=outDir, 
-#                 aminoAcidNames=aminoAcidNames,
-#                 aminoAcidProperties=aminoAcidProperties,
-#                 msmsDir=msmsDir,
-#                 pdbDir=inputDir,
-#                 genCofactorLabels = genCofactorLabels)
-#    #   
+    #process_serial(pdbList=pdbList,
+    #             outDir=outDir, 
+    #             aminoAcidNames=aminoAcidNames,
+    #             aminoAcidProperties=aminoAcidProperties,
+    #             msmsDir=msmsDir,
+    #             pdbDir=inputDir,
+    #             genCofactorLabels = genCofactorLabels)
+    ##   
     # Process pdbList using multiprocessing
     process_pdbs(pdbList=pdbList,
-                  outDir=outDir, 
-                  aminoAcidNames=aminoAcidNames,
-                    aminoAcidProperties=aminoAcidProperties,
-                    msmsDir=msmsDir,
-                    pdbDir=inputDir,
-                    genCofactorLabels = genCofactorLabels)
+                   outDir=outDir, 
+                   aminoAcidNames=aminoAcidNames,
+                   aminoAcidProperties=aminoAcidProperties,
+                   msmsDir=msmsDir,
+                   pdbDir=inputDir,
+                   genCofactorLabels = genCofactorLabels)
     print("Merging output csvs!")
     merge_results(outDir)
 ########################################################################################
@@ -119,8 +119,11 @@ def process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, ms
         exteriorDf, coreDf = findCoreExterior(pdbFile=noCoPdb, pdbDf=pdbDf,
                                           proteinName=proteinName, msmsDir=msmsDir,
                                           outDir=outDir)
-        caveDfs, pocketTags = gen_multi_cave_regions(outDir=outDir,
+
+        caveDfs, pocketTags, fpocketFeatures = gen_multi_cave_regions(outDir=outDir,
                                 pdbFile=noCoPdb)
+        if caveDfs == None or len(pocketTags) == 0:
+            return
         labelsDf = generate_cofactor_labels(caveDfs, pocketTags, cofactorDf, proteinName)
         os.remove(noCoPdb)
 
@@ -162,7 +165,7 @@ def process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, ms
                                                                 proteinName=proteinName, 
                                                                 regionName="core")    
     ## GET ELEMENT AND AA COUNTS AND AA PROPERTIES FOR ALL CAVES
-    for caveDf, pocketTag in zip(caveDfs, pocketTags):
+    for caveDf, pocketTag, fpocketDf in zip(caveDfs, pocketTags, fpocketFeatures):
         pocketName = f"{proteinName}_{pocketTag}"
         caveElementCountDf = element_count_in_region(regionDf=caveDf,
                                            regionName="cave",
@@ -179,7 +182,7 @@ def process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, ms
         ## MERGE FEATURESETS
         dfsToConcat = [extElementCountDf,coreElementCountDf,caveElementCountDf,
                     extAACountDf,coreAACountDf,caveAACountDf,
-                    extPropertiesDf,corePropertiesDf,cavePropertiesDf]
+                    extPropertiesDf,corePropertiesDf,cavePropertiesDf, fpocketDf]
         if genCofactorLabels:
             label = labelsDf.loc[:,pocketName]
             label.rename("Cofactor",inplace=True)

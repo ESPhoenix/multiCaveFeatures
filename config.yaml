@@ -1,5 +1,5 @@
 inputDir: "/home/esp/Machine_Learning/001_multiCaveCofactorClassification/04_clean_pdbs"
-outDir: "/home/esp/Machine_Learning/001_multiCaveCofactorClassification/05_features"
+outDir: "/home/esp/scriptDevelopment/multiCaveFeatures/05_features"
 msmsDir: "/home/esp/bin/MSMS"
 aminoAcidTable: "/home/esp/scriptDevelopment/multiCaveFeatures/amino_acid_properties.txt"
 genCofactorLabels: True
