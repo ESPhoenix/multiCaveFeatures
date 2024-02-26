@@ -7,16 +7,8 @@ from shutil import copy, rmtree
 from pdbUtils import *
 from scipy.spatial.distance import cdist
 import yaml
-###########################################################################################################
-def calculateEuclideanDistance(row, point):
-    xDiff = row['X'] - point[0]
-    yDiff = row['Y'] - point[1]
-    zDiff = row['Z'] - point[2]
-    euclidean = np.sqrt(xDiff**2 + yDiff**2 + zDiff**2)
-    
-    return float(euclidean)
-###########################################################################################################
 
+###########################################################################################################
 def vert2df(vertFile):
     x = []
     y = []
@@ -46,7 +38,6 @@ def area2df(areaFile):
     pdbDf = pd.DataFrame(data)
     return pdbDf
 ###########################################################################################################
-
 def initialiseAminoAcidInformation(aminoAcidTable):
     AminoAcidNames = ["ALA","ARG","ASN","ASP","CYS",
                       "GLN","GLU","GLY","HIS","ILE",
@@ -184,8 +175,9 @@ def gen_multi_cave_regions(outDir,pdbFile):
 
     os.chdir(pocketDir)
     ## Run FPocket
-    minSphereSize = "3.0"
-    maxSphereSize = "6.0"
+    minSphereSize = "3.4"
+    maxSphereSize = "10"
+
     subprocess.call(["fpocket","-f",pocketPdb,"-m",minSphereSize,"-M",maxSphereSize],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     # Read FPocket results into a dictionary, via  yaml file
@@ -200,14 +192,20 @@ def gen_multi_cave_regions(outDir,pdbFile):
     pocketDfs = []
     pocketTags = []
     for pocketId in info:
-        if info[pocketId]["Score"] < 0.15:
-            break
         pocketNumber = pocketId.split()[1]
+        pocketPdb = p.join(fpocketPdbDir, f"pocket{pocketNumber}_atm.pdb")
+        pocketVert = p.join(fpocketPdbDir, f"pocket{pocketNumber}_vert.pqr")
+        if info[pocketId]["Volume"] < 1000:
+            os.remove(pocketPdb)
+            os.remove(pocketVert)
+            continue
         pocketPdb = p.join(fpocketPdbDir, f"pocket{pocketNumber}_atm.pdb")
         pocketDf = pdb2df(pocketPdb)
         pocketDfs.append(pocketDf)
         pocketTag = gen_pocket_tag(pocketDf,pocketTags)
         pocketTags.append(pocketTag)
+        os.remove(pocketVert)
+
     # use fpocket output as features
     fpocketFeatures = []
     for pocketKey in info:
@@ -263,7 +261,13 @@ def generate_cofactor_labels(caveDfs, pocketTags, cofactorDf, proteinName):
             minDistances.append(tmpDf)
         minDistDf = pd.concat(minDistances, axis=1).T
         minIndex = minDistDf.idxmin(axis=0).to_list()
-        labelsDf.loc[minIndex,"Cofactor"] = coName
+        minDist = minDistDf.min()
+        try:
+            if minDist.values < 3.4:
+                labelsDf.loc[minIndex,"Cofactor"] = coName
+        except:
+            print(minDist)
+            continue
     return labelsDf.T     
 
 
