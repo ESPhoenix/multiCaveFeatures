@@ -39,10 +39,10 @@ def main():
     # initialise amino acid data
     # get list of pdbFiles in pdbDir
     idList, pdbList = getPdbList(pathInfo["inputDir"])
-    process_serial(pdbList=pdbList, pathInfo = pathInfo, optionsInfo = optionsInfo)
+    # process_serial(pdbList=pdbList, pathInfo = pathInfo, optionsInfo = optionsInfo)
       
     # Process pdbList using multiprocessing
-    # process_pdbs(pdbList=pdbList, pathInfo = pathInfo, optionsInfo = optionsInfo)
+    process_pdbs(pdbList=pdbList, pathInfo = pathInfo, optionsInfo = optionsInfo)
     print("Merging output csvs!")
     merge_results(pathInfo["outDir"])
 ########################################################################################
@@ -162,6 +162,18 @@ def process_pdbs_worker(pdbFile, pathInfo, optionsInfo, aminoAcidNames, aminoAci
             df.index = [pocketName]
 
         featuresDf = pd.concat(dfsToConcat, axis=1)
+        ## GENERATE CATEGORICAL FEATURES
+        if optionsInfo["genAminoAcidCategories"]:
+            featuresDf = make_amino_acid_category_counts(dataDf = featuresDf,
+                                             optionsInfo = optionsInfo)
+            
+        ## NORMALSIE COUNTS BY REGION SIZE
+        if optionsInfo["normaliseCounts"]:
+            featuresDf = normalise_counts_by_size(dataDf = featuresDf,
+                                                  aminoAcidNames = aminoAcidNames,
+                                                  optionsInfo = optionsInfo)
+
+
         # Save featuresDf to a CSV file
         saveFile = p.join(outDir, f"{pocketName}_features.csv")
         featuresDf.to_csv(saveFile, index=True)

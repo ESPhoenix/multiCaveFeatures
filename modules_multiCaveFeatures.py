@@ -7,7 +7,48 @@ from shutil import copy, rmtree
 from pdbUtils import *
 from scipy.spatial.distance import cdist
 import yaml
-
+###########################################################################################################
+def normalise_counts_by_size(dataDf, aminoAcidNames, optionsInfo):
+    elements = ["C","N","O","S"]
+    for region in ["cave","core","ext"]:
+        ## get totl number of AAs in region
+        totalCounts = dataDf[f"{region}.total"]
+        # create a list of features to be normalised
+        featureList = []
+        if optionsInfo["keepIndividualCounts"]:
+            for aminoAcid in aminoAcidNames:
+                featureList.append(f"{region}.{aminoAcid}")
+        if optionsInfo["genAminoAcidCategories"]:
+            for category in ["hydrophobic", "aromatic","polar_uncharged","cationic","anionic"]:
+                featureList.append(f"{region}.{category}")
+        for element in elements:
+            featureList.append(f"{region}.{element}")
+        ## divide by number of AAs in region
+        dataDf[featureList] = dataDf[featureList].div(totalCounts,axis=0)
+        ## remove total count features if specified
+        if not optionsInfo["keepTotalCounts"]:
+            dataDf.drop(columns = [f"{region}.total"], inplace=True)
+    return dataDf
+###########################################################################################################
+def make_amino_acid_category_counts(dataDf, optionsInfo):
+    hydrophobicAAs = ["ALA","VAL","ILE","LEU","MET","GLY","PRO"]
+    aromaticAAs = ["PHE","TYR","TRP"]
+    polarUncharged = ["SER", "THR", "ASN","GLN","HIS","CYS"]
+    cationicAAs = ["ARG","LYS"]
+    anionicAAs = ["ASP","GLU"]
+    aaCategories = {"hydrophobic": hydrophobicAAs,
+                    "aromatic": aromaticAAs,
+                    "polar_uncharged": polarUncharged,
+                    "cationic": cationicAAs,
+                    "anionic": anionicAAs}
+    
+    for region in ["cave","core","ext"]:
+        for category in aaCategories:
+            colNames = [f"{region}.{AA}" for AA in aaCategories[category]]
+            dataDf.loc[:,f"{region}.{category}"] = dataDf[colNames].sum(axis=1)
+            if not optionsInfo["keepIndividualCounts"]:
+                dataDf.drop(columns = colNames, inplace = True)
+    return dataDf
 ###########################################################################################################
 def vert2df(vertFile):
     x = []

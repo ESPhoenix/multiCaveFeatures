@@ -7,3 +7,5 @@ optionsInfo:
   genCofactorLabels: True
   genAminoAcidCategories: True
   keepIndividualCounts: False
+  normaliseCounts: True
+  keepTotalCounts: False
