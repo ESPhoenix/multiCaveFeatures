@@ -14,76 +14,6 @@ import yaml
 from modules_multiCaveFeatures import *
 from pdbUtils import *
 ########################################################################################
-def main():
-    # load user inputs
-    inputDir, outDir, msmsDir, aminoAcidTable, genCofactorLabels = read_inputs()
-
-    os.makedirs(outDir, exist_ok=True)
-    # initialise amino acid data
-    aminoAcidNames, aminoAcidProperties = initialiseAminoAcidInformation(aminoAcidTable)
-    # get list of pdbFiles in pdbDir
-    idList, pdbList = getPdbList(inputDir)
-    # process_serial(pdbList=pdbList,
-    #             outDir=outDir, 
-    #             aminoAcidNames=aminoAcidNames,
-    #             aminoAcidProperties=aminoAcidProperties,
-    #             msmsDir=msmsDir,
-    #             pdbDir=inputDir,
-    #             genCofactorLabels = genCofactorLabels)
-      
-    # Process pdbList using multiprocessing
-    process_pdbs(pdbList=pdbList,
-                   outDir=outDir, 
-                   aminoAcidNames=aminoAcidNames,
-                   aminoAcidProperties=aminoAcidProperties,
-                   msmsDir=msmsDir,
-                   pdbDir=inputDir,
-                   genCofactorLabels = genCofactorLabels)
-    print("Merging output csvs!")
-    merge_results(outDir)
-########################################################################################
-def merge_csv_files(csvFiles, outFile):
-    chunk_size = min((10, len(csvFiles)))  # Adjust this based on available memory
-    for i in range(0, len(csvFiles), chunk_size):
-        chunkFiles = csvFiles[i:i + chunk_size]
-        dfs = [pd.read_csv(csvFile, index_col="Unnamed: 0") for csvFile in chunkFiles]
-        merged_df = pd.concat(dfs, axis=0)
-        merged_df.to_csv(outFile, mode='a', header=not os.path.exists(outFile), index=True)
-    remainingFiles = csvFiles[i+chunk_size:]
-    if not len(remainingFiles) == 0:
-        dfs = [pd.read_csv(csvFile, index_col="Unnamed: 0") for csvFile in remainingFiles]
-        merged_df = pd.concat(dfs, axis=0) 
-        merged_df.to_csv(outFile, mode='a', header=not os.path.exists(outFile), index=True)
-
-    for csvFile in csvFiles:
-        os.remove(csvFile)
-
-###############################################################################################
-def batch_list(inputList, nBatches):
-    inLength = len(inputList)
-    batchSize = inLength // nBatches
-    remainder = inLength % nBatches
-
-    batches = [inputList[i * batchSize + min(i, remainder):(i + 1) * batchSize + min(i + 1, remainder)]
-                for i in range(nBatches)]
-    return batches
-########################################################################################
-def merge_results(outDir):
-    nCpus = multiprocessing.cpu_count()
-    csvFiles = glob.glob(os.path.join(outDir, "*_features.csv"))
-    csvBatches = batch_list(csvFiles,nCpus)
-    outCsvs = [p.join(outDir,f"caveFeatures_batch{i}.csv") for i in range(1,len(csvBatches)+1)]
-
-    with multiprocessing.Pool(processes=nCpus) as pool:
-        jobs = []
-        for csvFiles, outCsv in zip(csvBatches, outCsvs):
-            job = pool.apply_async(merge_csv_files,(csvFiles,outCsv))
-            jobs.append(job)
-        for job in jobs:
-            job.get()
-    finalMergedCsv = p.join(outDir, "multiCaveFeatures.csv")
-    merge_csv_files(outCsvs, finalMergedCsv)
-########################################################################################
 def read_inputs():
     ## create an argpass parser, read config file, snip off ".py" if on the end of file
     parser = argpass.ArgumentParser()
@@ -94,45 +24,82 @@ def read_inputs():
     ## Read config.yaml into a dictionary
     with open(config,"r") as yamlFile:
         config = yaml.safe_load(yamlFile) 
-    inputDir = config["inputDir"]
-    outDir = config["outDir"]
-    msmsDir = config["msmsDir"]
-    aminoAcidTable = config["aminoAcidTable"]
-    if "genCofactorLabels" in config:
-        genCofactorLabels = config["genCofactorLabels"]
-    else:
-        genCofactorLabels = False
 
-    return inputDir, outDir, msmsDir, aminoAcidTable, genCofactorLabels
+    pathInfo = config["pathInfo"]
+
+    optionsInfo = config["optionsInfo"]
+
+    return pathInfo, optionsInfo
 ########################################################################################
-def process_serial(pdbList, outDir, aminoAcidNames, aminoAcidProperties, msmsDir,pdbDir, genCofactorLabels):
+def main():
+    # load user inputs
+    pathInfo, optionsInfo= read_inputs()
+
+    os.makedirs(pathInfo["outDir"], exist_ok=True)
+    # initialise amino acid data
+    # get list of pdbFiles in pdbDir
+    idList, pdbList = getPdbList(pathInfo["inputDir"])
+    process_serial(pdbList=pdbList, pathInfo = pathInfo, optionsInfo = optionsInfo)
+      
+    # Process pdbList using multiprocessing
+    # process_pdbs(pdbList=pdbList, pathInfo = pathInfo, optionsInfo = optionsInfo)
+    print("Merging output csvs!")
+    merge_results(pathInfo["outDir"])
+########################################################################################
+def process_serial(pdbList, pathInfo, optionsInfo):
+
+    ## get AA names and properties (do outside loop to save time)
+    aminoAcidNames, aminoAcidProperties = initialiseAminoAcidInformation(pathInfo["aminoAcidTable"])
+    ## run worker in serial (slow but easier to debug!)
     for pdbFile in pdbList:
-        process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, msmsDir, pdbDir, genCofactorLabels)
+        process_pdbs_worker(pdbFile, pathInfo, optionsInfo, aminoAcidNames, aminoAcidProperties)
+
 ########################################################################################
-def process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, msmsDir, pdbDir, genCofactorLabels):
+def process_pdbs(pdbList, pathInfo, optionsInfo):
+    ## get AA names and properties (do outside mp to save time)
+    aminoAcidNames, aminoAcidProperties = initialiseAminoAcidInformation(pathInfo["aminoAcidTable"])
+    # Use multiprocessing to parallelize the processing of pdbList
+    num_processes = multiprocessing.cpu_count()
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        pool.starmap(process_pdbs_worker,
+                     tqdm( [(pdbFile, pathInfo, optionsInfo, aminoAcidNames, aminoAcidProperties) for pdbFile in pdbList],
+                     total = len(pdbList)))
+########################################################################################
+def process_pdbs_worker(pdbFile, pathInfo, optionsInfo, aminoAcidNames, aminoAcidProperties):
+    ## read pathInfo to get key paths
+    outDir = pathInfo["outDir"]
+    msmsDir = pathInfo["msmsDir"]
+    ## get protName for index and load pdb file as a dataframe
     proteinName = p.splitext(p.basename(pdbFile))[0]
     pdbDf = pdb2df(pdbFile)
-
-    if genCofactorLabels:
+    # if instructed to generate cofactor labels for classifier
+    if optionsInfo["genCofactorLabels"]:
+        # remove cofactor related rows from dataframe
         cofactorDf = pdbDf[~pdbDf["RES_NAME"].isin(aminoAcidNames)]
         pdbDf = pdbDf[pdbDf["RES_NAME"].isin(aminoAcidNames)]
         noCoPdb = p.join(outDir, f"{proteinName}_noCofactor.pdb")
+        # write no-cofactor dataframe to pdb file
         df2Pdb(pdbDf,noCoPdb)
+        # use MSMS to split into core and exterior dataframes
         exteriorDf, coreDf = findCoreExterior(pdbFile=noCoPdb, pdbDf=pdbDf,
                                           proteinName=proteinName, msmsDir=msmsDir,
                                           outDir=outDir)
-
+        # use fpocket to identify caves 
         caveDfs, pocketTags, fpocketFeatures = gen_multi_cave_regions(outDir=outDir,
                                 pdbFile=noCoPdb)
+        # if not caves found, skip this protein entirely
         if caveDfs == None or len(pocketTags) == 0:
             return
+        # label each row as cofactor binding or vacant 
         labelsDf = generate_cofactor_labels(caveDfs, pocketTags, cofactorDf, proteinName)
         os.remove(noCoPdb)
-
+    # for data with no bound cofactor
     else:
+        # use MSMS to split into core and exterior dataframes
         exteriorDf, coreDf = findCoreExterior(pdbFile=pdbFile, pdbDf=pdbDf,
                                             proteinName=proteinName, msmsDir=msmsDir,
                                             outDir=outDir)
+        # use fpocket to identify caves 
         caveDfs, pocketTags = gen_multi_cave_regions(outDir=outDir,
                                     pdbFile=pdbFile)
 
@@ -185,7 +152,7 @@ def process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, ms
         dfsToConcat = [extElementCountDf,coreElementCountDf,caveElementCountDf,
                     extAACountDf,coreAACountDf,caveAACountDf,
                     extPropertiesDf,corePropertiesDf,cavePropertiesDf, fpocketDf]
-        if genCofactorLabels:
+        if optionsInfo["genCofactorLabels"]:
             label = labelsDf.loc[:,pocketName]
             label.rename("Cofactor",inplace=True)
             dfsToConcat.append(label)
@@ -199,15 +166,52 @@ def process_pdbs_worker(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, ms
         saveFile = p.join(outDir, f"{pocketName}_features.csv")
         featuresDf.to_csv(saveFile, index=True)
 
-########################################################################################
-def process_pdbs(pdbList, outDir, aminoAcidNames, aminoAcidProperties, msmsDir,pdbDir, genCofactorLabels):
-    # Use multiprocessing to parallelize the processing of pdbList
-    num_processes = multiprocessing.cpu_count()
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        pool.starmap(process_pdbs_worker,
-                     tqdm( [(pdbFile, outDir, aminoAcidNames, aminoAcidProperties, msmsDir, pdbDir, genCofactorLabels) for pdbFile in pdbList],
-                     total = len(pdbList)))
 
 
 ########################################################################################
+def merge_results(outDir):
+    nCpus = multiprocessing.cpu_count()
+    csvFiles = glob.glob(os.path.join(outDir, "*_features.csv"))
+    csvBatches = batch_list(csvFiles,nCpus)
+    outCsvs = [p.join(outDir,f"caveFeatures_batch{i}.csv") for i in range(1,len(csvBatches)+1)]
+
+    with multiprocessing.Pool(processes=nCpus) as pool:
+        jobs = []
+        for csvFiles, outCsv in zip(csvBatches, outCsvs):
+            job = pool.apply_async(merge_csv_files,(csvFiles,outCsv))
+            jobs.append(job)
+        for job in jobs:
+            job.get()
+    finalMergedCsv = p.join(outDir, "multiCaveFeatures.csv")
+    merge_csv_files(outCsvs, finalMergedCsv)
+########################################################################################
+def merge_csv_files(csvFiles, outFile):
+    chunk_size = min((10, len(csvFiles)))  # Adjust this based on available memory
+    for i in range(0, len(csvFiles), chunk_size):
+        chunkFiles = csvFiles[i:i + chunk_size]
+        dfs = [pd.read_csv(csvFile, index_col="Unnamed: 0") for csvFile in chunkFiles]
+        merged_df = pd.concat(dfs, axis=0)
+        merged_df.to_csv(outFile, mode='a', header=not os.path.exists(outFile), index=True)
+    remainingFiles = csvFiles[i+chunk_size:]
+    if not len(remainingFiles) == 0:
+        dfs = [pd.read_csv(csvFile, index_col="Unnamed: 0") for csvFile in remainingFiles]
+        merged_df = pd.concat(dfs, axis=0) 
+        merged_df.to_csv(outFile, mode='a', header=not os.path.exists(outFile), index=True)
+
+    for csvFile in csvFiles:
+        os.remove(csvFile)
+
+###############################################################################################
+def batch_list(inputList, nBatches):
+    inLength = len(inputList)
+    batchSize = inLength // nBatches
+    remainder = inLength % nBatches
+
+    batches = [inputList[i * batchSize + min(i, remainder):(i + 1) * batchSize + min(i + 1, remainder)]
+                for i in range(nBatches)]
+    return batches
+
+
+########################################################################################
+        
 main()
