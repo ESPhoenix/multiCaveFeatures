@@ -48,6 +48,7 @@ def make_amino_acid_category_counts(dataDf, optionsInfo):
             dataDf.loc[:,f"{region}.{category}"] = dataDf[colNames].sum(axis=1)
             if not optionsInfo["keepIndividualCounts"]:
                 dataDf.drop(columns = colNames, inplace = True)
+                
     return dataDf
 ###########################################################################################################
 def vert2df(vertFile):

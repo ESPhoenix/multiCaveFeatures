@@ -1,11 +1,11 @@
 pathInfo:
-  inputDir: "/home/esp/scriptDevelopment/multiCaveFeatures/test_pdbs"
+  inputDir: "/home/esp/dataset_generation/flavin_dataset/04_3d_structure_generation/Alphafold/01_50_percent_similarity/fixed_folds/All_folds"
   outDir: "/home/esp/scriptDevelopment/multiCaveFeatures/05_features"
   msmsDir: "/home/esp/bin/MSMS"
   aminoAcidTable: "/home/esp/scriptDevelopment/multiCaveFeatures/amino_acid_properties.txt"
 optionsInfo:
-  genCofactorLabels: True
+  genCofactorLabels: False
   genAminoAcidCategories: True
   keepIndividualCounts: False
-  normaliseCounts: True
-  keepTotalCounts: False
+  normaliseCounts: False
+  keepTotalCounts: True

@@ -100,7 +100,7 @@ def process_pdbs_worker(pdbFile, pathInfo, optionsInfo, aminoAcidNames, aminoAci
                                             proteinName=proteinName, msmsDir=msmsDir,
                                             outDir=outDir)
         # use fpocket to identify caves 
-        caveDfs, pocketTags = gen_multi_cave_regions(outDir=outDir,
+        caveDfs, pocketTags, fpocketFeatures = gen_multi_cave_regions(outDir=outDir,
                                     pdbFile=pdbFile)
 
     ## GET ELEMENT COUNTS FOR EACH REGION ##
