@@ -244,8 +244,8 @@ def gen_multi_cave_regions(outDir,pdbFile):
         pocketPdb = p.join(fpocketPdbDir, f"pocket{pocketNumber}_atm.pdb")
         pocketDf = pdb2df(pocketPdb)
         pocketDfs.append(pocketDf)
-        pocketTag = gen_pocket_tag(pocketDf,pocketTags)
-        pocketTags.append(pocketTag)
+
+        pocketTags.append(pocketId)
         os.remove(pocketVert)
 
     # use fpocket output as features

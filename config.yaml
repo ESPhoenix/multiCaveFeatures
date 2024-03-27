@@ -1,10 +1,10 @@
 pathInfo:
-  inputDir: "/home/esp/dataset_generation/flavin_dataset/04_3d_structure_generation/Alphafold/01_50_percent_similarity/fixed_folds/All_folds"
-  outDir: "/home/esp/scriptDevelopment/multiCaveFeatures/05_features"
+  inputDir: "/home/esp/Machine_Learning/11_pdb_dataset/01_dataset_pdbs"
+  outDir: "/home/esp/Machine_Learning/11_pdb_dataset/02_features"
   msmsDir: "/home/esp/bin/MSMS"
-  aminoAcidTable: "/home/esp/scriptDevelopment/multiCaveFeatures/amino_acid_properties.txt"
+  aminoAcidTable: "/home/esp/Machine_Learning/11_pdb_dataset/00_scripts/multiCaveFeatures/amino_acid_properties.txt"
 optionsInfo:
-  genCofactorLabels: False
+  genCofactorLabels: True
   genAminoAcidCategories: True
   keepIndividualCounts: False
   normaliseCounts: False
